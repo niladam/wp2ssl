@@ -197,3 +197,5 @@ function lets_do_it_now() {
 	check_for_wordpress
 	update_urls
 }
+# We have everything, let's do it.
+lets_do_it_now
