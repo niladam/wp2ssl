@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+#
+# WordPress 2 SSL
+# Script that tries to automate moving from HTTP to HTTPs on
+# WordPress websites.
+#
+# The script makes use of WP-CLI's function along with some tested and reviewed
+# search and replace functionality.
+#
+# WP-CLI can be optionally installed automatically.
+# The installation of wp-cli will create a /usr/local/bin/wp file on your system.
+
+
+# WP-CLI path (default, can be changed to a local version of it)
+WP2SSL_WPCLIPATH="/usr/local/bin/wp"
+# Backup before trying to update URLs ?
+WP2SSL_BACKUP_DB="yes"
+# Show debug message ?
+WP2SSL_DEBUG="yes"
+# If you don't want to show debug messages, you can set the name of a debug
+# log file that can be used to write output to.
+WP2SSL_DEBUG_LOG=""
+# Just a CWD holder.
+WP2SSL_CWD=$(pwd)
+# Some colors i will be using throughout the script.
+R=`tput setaf 1`        # red
+V=`tput setaf 2`        # green
+G=`tput setaf 3`        # yellow
+N=`tput sgr0`           # normal
+B=`tput bold`           # bold..
+
+################################################################################
+#
+# You should stop editing after this line, unless you know what you're doing.
+#
+################################################################################
+
+
+# Let's make sure that we can run wp-cli as root. Unsafe, but useful most
+# of the time.
+function wp() {
+  "$WP2SSL_WPCLIPATH" "$@" --allow-root
+}
+# Let's use a function to return based on success/error
+# ok    = Message shown in green
+# notok = Message shown in red
+# *     = Anything else is by default a warning, and shown in yellow.
+function show_message() {
+        if [ "$WP2SSL_DEBUG" == "yes" ]; then
+                # Debugging enabled, showing messages and not writing a log.
+                case "$2" in
+                                "ok")
+                                        echo -e "${V}[***]" "$1" "${N}"
+                                        ;;
+                                "notok")
+                                        echo -e "${R}[***]" "$1" "${N}"
+                                        ;;
+                                *)
+                                        echo -e "${G}[***]" "$1" "${N}"
+                                        ;;
+                esac
+        else
+                # Debugging disabled, we should write to debug log.
+                if [ -z "$WP2SSL_DEBUG_LOG" ]; then
+                        WP2SSL_DEBUG_LOG="wp2ssl_debug.log"
+                fi
+                        case "$2" in
+                                "ok")
+                                        echo "SUCCESS:" "$1" >> "$WP2SSL_DEBUG_LOG"
+                                        ;;
+                                "notok")
+                                        echo "ERROR:" "$1" >> "$WP2SSL_DEBUG_LOG"
+                                        ;;
+                                *)
+                                        echo "INFO:" "$1" >> "$WP2SSL_DEBUG_LOG"
+                                        ;;
+                        esac
+        fi
+
+}
+# Checking for WP-CLI and returning a message if not found.
+function check_for_wp_cli() {
+        if [ -z "$WP2SSL_WPCLIPATH" ]; then
+                show_message "WP-CLI path variable is empty, aborting.." notok
+                exit 1
+        fi
+        if ! type "$WP2SSL_WPCLIPATH" > /dev/null; then
+        	show_message "WP-CLI variable is set, but the program doesn't exist, attempting install.." info
+        	# The following piece of code is taken from http://stackoverflow.com/a/3232082/1064703
+        	read -r -p "Do you want to install WP-CLI ? [y/N] " response
+        	case "$response" in
+        	    [yY][eE][sS]|[yY])
+        	        install_wp_cli
+        	        ;;
+        	    *)
+        	        show_message "Installation of WP-CLI aborted. Entire script is now exiting." notok
+        	        exit 1
+        	        ;;
+        	esac
+        fi
+}
+# Let's check this is actually a WordPress site
+function check_for_wordpress() {
+        # First we check for wp-includes/versio.php
+        if [ ! -f "$WP2SSL_CWD/wp-includes/version.php" ]; then
+            # nope, not WordPress, let's warn and check tables using wp-cli
+            show_message "The file version.php is missing in wp-includes, checking for tables.."
+            # exit 1
+            # # This needs some fixing as apparently there's a bug in WP-CLI
+            # # issue: https://github.com/wp-cli/wp-cli/issues/3752
+            wp core is-installed &>/dev/null
+            INSTALLED_CODE=$?
+            if [ $INSTALLED_CODE -eq 1 ]; then
+                # WordPress appears to be missing, let's abort.
+                show_message "WordPress tables are missing too, aborting.." notok
+                exit 1
+            fi
+        fi
+}
+# Fuctionality to install WP-CLI
+function install_wp_cli() {
+	WP2SSL_WP_CLI_URL="https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar"
+    show_message "WP-CLI install requested, proceeding.." info
+    WP2SSL_WP_CLI_TEMP_DL=$(curl "$WP2SSL_WP_CLI_URL" -o "$WP2SSL_WPCLIPATH")
+    WP2SSL_WP_CLI_TEMP_DL=$?
+    if [ $WP2SSL_WP_CLI_TEMP_DL -ne 0 ]; then
+            # For some reason we couldn't download, let's bail.
+            show_message ""
+            show_message "${B}WP-CLI${N} install attempted, but failed." notok
+            show_message "For some reason, i couldn't download the latest version of ${B}WP-CLI${N}" notok
+            show_message "You should attempt to manually install using the instructions at" notok
+            show_message " *** http://wp-cli.org/#installing *** " notok
+            show_message ""
+            rm -rf "$WP2SSL_WPCLIPATH"
+            exit 1
+    else
+            chmod +x "$WP2SSL_WPCLIPATH"
+            show_message ""
+            show_message "${B}WP-CLI${N} install successful" ok
+            show_message "${B}WP-CLI${N} has been installed in $WP2SSL_WPCLIPATH" ok
+    fi
+}
+# Functionality that handles search and replace.
+function update_urls() {
+	show_message "******* WARNING WARNING WARNING *******" info
+	show_message "******* WARNING WARNING WARNING *******" info
+	show_message "******* WARNING WARNING WARNING *******" info
+	show_message "You are about to update ${B}http${N} to ${B}https${N}" ok
+	show_message "If you're not sure about this abort now." info
+	read -r -p "Do you want to abort the update ? [y/N] " abortupdate
+	case "$abortupdate" in
+	    [yY][eE][sS]|[yY])
+	        show_message "Update aborted. Script exiting." notok
+	        exit 1
+	        ;;
+	    *)
+	        show_message "Abort canceled, proceeding with the update" ok
+	        ;;
+	esac
+	WP2SSL_SITEURL=`wp option get siteurl`
+	show_message "Running search and replace (verbose mode)" info
+	wp search-replace "$WP2SSL_SITEURL" "${WP2SSL_SITEURL/http:/https:}" --dry-run --precise --verbose
+	read -r -p "Proceed with the update ? [y/N] " goon
+	case "$goon" in
+	    [yY][eE][sS]|[yY])
+			show_message "Search and replace accepted, proceeding with the update" ok
+			wp search-replace "$WP2SSL_SITEURL" "${WP2SSL_SITEURL/http:/https:}" --precise --verbose
+	        ;;
+	    *)
+	        show_message "Search and replace aborted. Script exiting." notok
+	        exit 1
+	        ;;
+	esac
+	show_message "Search and replace finished, updating .htaccess to enforce HTTPs" ok
+	\cp "$WP2SSL_CWD/.htaccess" "$WP2SSL_CWD/.htaccess.orig"
+# This looks odd, maybe we could re-arrange it in the future..
+# or maybe we could use
+# # sed -i '1s/^/<variable> /' .htaccess
+cat > "$WP2SSL_CWD/.htaccess" <<EOF
+# Force HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+EOF
+	show_message "Original htaccess retained as ${B}.htaccess.orig${N}. " ok
+	show_message ".htaccess should now redirect from HTTP to HTTPs" ok
+	show_message "Everything should be done, but if your theme loads external" ok
+	show_message " components like CSS/JS files using HTTP you might get mixed " ok
+	show_message " content warnings, which can be fixed by making sure that the" ok
+	show_message " styles/scripts are loaded using either ${B}//${N} or ${B}https://${N}" ok
+	show_message "If you don't know how to handle that i suggest checking out " ok
+	show_message " ${B}Really Simple SSL${N} - https://wordpress.org/plugins/really-simple-ssl/" ok
+	exit 0
+}
