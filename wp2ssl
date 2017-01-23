@@ -13,7 +13,7 @@
 
 
 # WP2SSL file version
-WP2SSL_VER="1.1"
+WP2SSL_VER="1.2"
 
 # WP-CLI path (default, can be changed to a local version of it)
 WP2SSL_WPCLIPATH="/usr/local/bin/wp"
@@ -274,7 +274,7 @@ function update_urls() {
 	show_message "******* WARNING WARNING WARNING *******" info
 	show_message "You are about to update ${B}http${N} to ${B}https${N}" ok
 	show_message "If you're not sure about this abort now." info
-	read -r -p "Do you want to abort the update (ENTER for no) ? [y/N] " abortupdate
+	read -r -p "Do you want to abort the update (ENTER to continue) ? [y/N] " abortupdate
 	case "$abortupdate" in
 	    [yY][eE][sS]|[yY])
 	        show_message "Update aborted. Script exiting." notok
@@ -288,7 +288,7 @@ function update_urls() {
     WP2SSL_CURRENT_OWNER=$(ls -l wp-config.php | awk '{ print $3 }')
 	show_message "Running search and replace (verbose mode)" info
 	wp search-replace "$WP2SSL_SITEURL" "${WP2SSL_SITEURL/http:/https:}" --dry-run --precise --verbose
-	read -r -p "Proceed with the update (ENTER for yes) ? [y/N] " goon
+	read -r -p "Proceed with the update (enter Y/YES/yes) ? [y/N] " goon
 	case "$goon" in
 	    [yY][eE][sS]|[yY])
 			show_message "Search and replace accepted, proceeding with the update" ok
