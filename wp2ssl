@@ -248,6 +248,25 @@ esac
     shift
 done
 # Arguments end
+
+# Let's export the database and archive it. Just in case :)
+function backup_db() {
+    WP2SSL_EXPORTED_DB=$(wp db export --porcelain 2>&1)
+    if [ -f "$WP2SSL_EXPORTED_DB" ]; then
+        show_message "Database dumped, archiving it ... OK" ok
+    else
+        show_message "Database dump ... FAILED, aborting." notok
+        exit 1
+    fi
+    gzip -9 "$WP2SSL_EXPORTED_DB"
+    if [ -f "$WP2SSL_EXPORTED_DB.gz" ]; then
+        show_message "Created $WP2SSL_EXPORTED_DB.gz" ok
+    else
+        show_message "Failed to archive the SQL dump, aborting." notok
+        exit 1
+    fi
+}
+
 # Functionality that handles search and replace.
 function update_urls() {
 	show_message "******* WARNING WARNING WARNING *******" info
@@ -309,6 +328,7 @@ EOF
 function lets_do_it_now() {
 	check_for_wp_cli
 	check_for_wordpress
+    backup_db
 	update_urls
 }
 # We have everything, let's do it.
