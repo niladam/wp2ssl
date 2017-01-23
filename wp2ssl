@@ -192,3 +192,8 @@ EOF
 	show_message " ${B}Really Simple SSL${N} - https://wordpress.org/plugins/really-simple-ssl/" ok
 	exit 0
 }
+function lets_do_it_now() {
+	check_for_wp_cli
+	check_for_wordpress
+	update_urls
+}
