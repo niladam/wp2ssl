@@ -84,8 +84,11 @@ If you want to contribute to this script, please fork/clone create a new branch 
 - [ ] Bulk run ?
 - [ ] Identify scripts/javascripts and force them to use HTTPS ?
 - [ ] Suggest and/or install Really Simple SSL after use?
-- [ ] Suggest and/or run backup before attempting the database changes ?
-- [ ] For WP-ADMIN SSL after run ?
+- [x] Suggest and/or run backup before attempting the database changes ? *Since [#a854614](https://github.com/niladam/wp2ssl/commit/a854614e6620c5b5bc5da1ebb96755ec8876c240) the plugin runs an export and archives the database dump. Just to be safe :)*
+- [ ] Force WP-ADMIN SSL after run ?
+
+# Notes
+Some of the functionality in this script were originally built for [WPEB - ***W***ordPress ***E***asy ***B***ackup](https://github.com/niladam/wpeb), another script that might be of your interest.
 
 # License
 
