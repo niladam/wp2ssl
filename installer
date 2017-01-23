@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+#
+# WP2SSL installer file.
+#
+# WP2SSL (WordPress 2 SSL) is free software: you can redistribute it
+# and/or modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, either version 2
+# of the License, or (optionally) any later version.
+#
+# curl -sSL https://wp2ssl-installer.includes.io | bash
+#
+
+# Let's get the basics..
+WP2SSL_NOW=$(date +"%Y-%m-%d-%H%M")
+WP2SSL_MAIN="https://wp2ssl-main.includes.io"
+WP2SSL_TEMP="/tmp/wp2ssl.$WP2SSL_NOW"
+WP2SSL_TARGET="/usr/local/bin/wp2ssl"
+start_checks() {
+	if [ -f "$WP2SSL_TARGET" ]; then
+		# WP2SSL found, run update procedure ?
+		run_update
+	else
+		# WP2SSL not found in the regular location, let's run the install.
+		run_install
+	fi
+}
+run_update() {
+	# We already know the file exists from the check for old version,
+	# let's get the version and just compare.
+	# Go ahead with the download.
+	WP2SSL_TEMP_DL=$(curl -sSL "$WP2SSL_MAIN" -o "$WP2SSL_TEMP")
+	WP2SSL_DOWN_OK=$?
+	if [ "$WP2SSL_DOWN_OK" -ne 0 ]; then
+		# For some reason we couldn't download, let's bail.
+		echo ""
+		echo " *** For some reason, i couldn't download the latest version of WP2SSL"
+		echo " *** Maybe you want to have a look at the docs and try a manual install ?"
+		echo " *** https://github.com/niladam/wp2ssl  ***"
+		echo ""
+		run_cleanup
+		exit 1
+	fi
+	WP2SSL_NEW_VERSION=$(grep WP2SSL_VER "$WP2SSL_TEMP" | head -1 | cut -d = -f2 | tr -d '"')
+	WP2SSL_OLD_VERSION=$(grep WP2SSL_VER "$WP2SSL_TARGET" | head -1 | cut -d = -f2 | tr -d '"')
+	WP2SSL_GT=$(echo "$WP2SSL_NEW_VERSION > $WP2SSL_OLD_VERSION" | bc -q )
+	if [ "$WP2SSL_GT" = 1 ]; then
+		# Got newer version, move to target file.
+		echo " *** New version found, $WP2SSL_NEW_VERSION. You have $WP2SSL_OLD_VERSION. Proceeding with install.."
+	  	mv -f "$WP2SSL_TEMP" "$WP2SSL_TARGET"
+	  	chmod +x "$WP2SSL_TARGET"
+	  	echo ""
+	  	echo " *** New version, $WP2SSL_NEW_VERSION was updated. Enjoy!"
+	  	echo ""
+	else
+		# Now that should be impossible!:)
+		echo " *** Apparently, the installed version is newer or current.."
+		echo " *** Current: $WP2SSL_OLD_VERSION // NEW: $WP2SSL_NEW_VERSION"
+		# echo " *** This can happen if the file has been manually modified and/or altered.."
+		echo " *** If you think this is a mistake, please open an issue at "
+		echo " *** https://github.com/niladam/wp2ssl/issues *** "
+		run_cleanup
+		exit 1
+	fi
+}
+run_install() {
+	WP2SSL_TEMP_DL=$(curl -sSL "$WP2SSL_MAIN" -o "$WP2SSL_TEMP")
+	WP2SSL_NEW_VERSION=$(grep WP2SSL_VER "$WP2SSL_TEMP" | head -1 | cut -d = -f2 | tr -d '"')
+	if [ "$WP2SSL_TEMP_DL" -ne 0 ]; then
+		# For some reason we couldn't download, let's bail.
+		echo ""
+		echo " *** For some reason, i couldn't download the latest version of WP2SSL"
+		echo " *** Maybe you want to have a look at the docs and try a manual install ?"
+		echo " *** https://github.com/niladam/wp2ssl  ***"
+		echo ""
+		run_cleanup
+		exit 1
+	else
+		echo " *** WP2SSL not found on the system. Installing $WP2SSL_NEW_VERSION.."
+		mv -f "$WP2SSL_TEMP" "$WP2SSL_TARGET"
+		chmod +x "$WP2SSL_TARGET"
+		echo ""
+		echo " *** WP2SSL version $WP2SSL_NEW_VERSION was installed. Enjoy!"
+		echo ""
+	fi
+
+}
+run_cleanup() {
+	# Let's clean up after ourselves..
+	rm -rf "$WP2SSL_TEMP"
+}
+
+# We have everything, let's proceed.
+start_checks

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # WordPress 2 SSL
-# Script that tries to automate moving from HTTP to HTTPs on
-# WordPress websites.
+# Script that tries to automate moving from HTTP to HTTPs on WordPress websites.
+# (c) 2017 Madalin Tache
+# http://github.com/niladam/wp2ssl
 #
 # The script makes use of WP-CLI's function along with some tested and reviewed
 # search and replace functionality.
@@ -10,6 +11,9 @@
 # WP-CLI can be optionally installed automatically.
 # The installation of wp-cli will create a /usr/local/bin/wp file on your system.
 
+
+# WP2SSL file version
+WP2SSL_VER="1.1"
 
 # WP-CLI path (default, can be changed to a local version of it)
 WP2SSL_WPCLIPATH="/usr/local/bin/wp"
@@ -80,6 +84,7 @@ function show_message() {
 }
 # Checking for WP-CLI and returning a message if not found.
 function check_for_wp_cli() {
+    show_message "Checking for ${B}WP-CLI${N} ..." info
         if [ -z "$WP2SSL_WPCLIPATH" ]; then
                 show_message "WP-CLI path variable is empty, aborting.." notok
                 exit 1
@@ -98,24 +103,27 @@ function check_for_wp_cli() {
         	        ;;
         	esac
         fi
+        show_message "${B}WP-CLI${N} ... OK" ok
 }
 # Let's check this is actually a WordPress site
 function check_for_wordpress() {
-        # First we check for wp-includes/versio.php
-        if [ ! -f "$WP2SSL_CWD/wp-includes/version.php" ]; then
-            # nope, not WordPress, let's warn and check tables using wp-cli
-            show_message "The file version.php is missing in wp-includes, checking for tables.."
-            # exit 1
-            # # This needs some fixing as apparently there's a bug in WP-CLI
-            # # issue: https://github.com/wp-cli/wp-cli/issues/3752
-            wp core is-installed &>/dev/null
-            INSTALLED_CODE=$?
-            if [ $INSTALLED_CODE -eq 1 ]; then
-                # WordPress appears to be missing, let's abort.
-                show_message "WordPress tables are missing too, aborting.." notok
-                exit 1
-            fi
+    show_message "Checking for ${B}WordPress${N} install ..." info
+    # First we check for wp-includes/versio.php
+    if [ ! -f "$WP2SSL_CWD/wp-includes/version.php" ]; then
+        # nope, not WordPress, let's warn and check tables using wp-cli
+        show_message "The file version.php is missing in wp-includes, checking for tables.." ntok
+        # exit 1
+        # # This needs some fixing as apparently there's a bug in WP-CLI
+        # # issue: https://github.com/wp-cli/wp-cli/issues/3752
+        wp core is-installed &>/dev/null
+        INSTALLED_CODE=$?
+        if [ $INSTALLED_CODE -eq 1 ]; then
+            # WordPress appears to be missing, let's abort.
+            show_message "WordPress tables are missing too, aborting.." notok
+            exit 1
         fi
+    fi
+    show_message "${B}WordPress${N} install ... OK" info
 }
 # Fuctionality to install WP-CLI
 function install_wp_cli() {
@@ -140,6 +148,106 @@ function install_wp_cli() {
             show_message "${B}WP-CLI${N} has been installed in $WP2SSL_WPCLIPATH" ok
     fi
 }
+# Self-update functionality
+run_update() {
+    WP2SSL_NOW_UPDATE=$(date +"%Y-%m-%d-%H%M")
+    WP2SSL_MAIN="https://wp2ssl-main.includes.io"
+    WP2SSL_TEMP="/tmp/wp2ssl.$WP2SSL_NOW_UPDATE"
+    WP2SSL_TARGET="/usr/local/bin/wp2ssl"
+    WP2SSL_OLD_VERSION=$(grep WP2SSL_VER "$WP2SSL_TARGET" | head -1 | cut -d = -f2 | tr -d '"')
+    WP2SSL_TEMP_DL=$(curl -sSL "$WP2SSL_MAIN" -o "$WP2SSL_TEMP")
+    WP2SSL_DOWN_OK=$?
+    if [ $WP2SSL_DOWN_OK -ne 0 ]; then
+        # For some reason we couldn't download, let's bail.
+        show_message ""
+        show_message "${B}WP2SSL${N} download attempted, but failed." notok
+        show_message "For some reason, i couldn't download the latest version of ${B}WP2SSL${N}" notok
+        show_message "Maybe you want to have a look at the install section ?" notok
+        show_message " *** https://github.com/niladam/wp2ssl  ***" notok
+        show_message ""
+        rm -rf "$WP2SSL_TEMP"
+        exit 1
+    fi
+    WP2SSL_NEW_VERSION=$(grep WP2SSL_VER "$WP2SSL_TEMP" | head -1 | cut -d = -f2 | tr -d '"')
+    if echo $WP2SSL_NEW_VERSION $WP2SSL_OLD_VERSION | awk '{exit $1>$2?0:1}'
+    then
+        # echo WP2SSL_NEW_VERSION greater than WP2SSL_OLD_VERSION
+        # Got newer version, move to target file.
+        show_message "New version found, $WP2SSL_NEW_VERSION. You have $WP2SSL_OLD_VERSION. Proceeding with install.." ok
+        mv -f "$WP2SSL_TEMP" "$WP2SSL_TARGET"
+        chmod +x "$WP2SSL_TARGET"
+        show_message ""
+        show_message "New version, $WP2SSL_NEW_VERSION was updated. Enjoy!" ok
+        show_message ""
+        exit 0
+    else
+        # Now that should be impossible!:)
+        show_message ""
+        show_message "Apparently, the installed version is NEWER than the CURRENT version.." notok
+        show_message "This can happen if the file has been manually modified and/or altered.." notok
+        show_message "If you think this is a mistake, please open an issue at " notok
+        show_message " *** https://github.com/niladam/wp2ssl/issues *** " notok
+        show_message ""
+        rm -rf "$WP2SSL_TEMP"
+        exit 1
+    fi
+}
+# Let's add arguments functionality
+for i in "$@"
+do
+case $i in
+    --q|--quiet)
+        WP2SSL_DEBUG="no"
+        WP2SSL_DEBUG_LOG="$WP2SSL_CWD/wp2ssl_debug.log"
+        shift
+        ;;
+    --up|--self-update)
+        run_update
+
+        ;;
+    -h|--h|--help)
+        echo ${B}${V} ""
+        echo "                  ____          _  "
+        echo "   __      ___ __|___ \ ___ ___| | "
+        echo "   \ \ /\ / / '_ \ __) / __/ __| | "
+        echo "    \ V  V /| |_) / __/\__ \__ \ | "
+        echo "     \_/\_/ | .__/_____|___/___/_| "
+        echo "            |_|                    "
+        echo "                       v. $WP2SSL_VER      "
+        echo "  https://github.com/niladam/wp2ssl   "
+        echo ${N} ""
+        cat <<EOF
+    WordPress 2 SSL is a script that tries to automate moving from
+    HTTP to HTTPs on WordPress websites.
+
+    It uses WP-CLI do do a search and replace in the database, replacing
+    all urls from HTTP to HTTPS, and updates .htaccess to force to HTTPS.
+
+    Found a bug ? Please be nice and report it on git, using the URL
+
+    https://github.com/niladam/wp2ssl
+
+    Usage: wp2ssl [optional flags]
+
+    [FLAGS]
+        --q, --quiet                Passing this will silence all output from wp2ssl, and write
+                                    everything to a file called ${B}${V}wp2ssl_debug.log${N} in the
+                                    current working directory.
+                                    (WARNING: wp-cli might return some notices/errors)
+
+        --up, --self-update         Self update this script to the latest version.
+                                    Uses ${B}curl${N}.
+
+        --h, --help                 This help screen.
+
+    %% Enjoy WP2SSL.
+EOF
+exit 0
+    ;;
+esac
+    shift
+done
+# Arguments end
 # Functionality that handles search and replace.
 function update_urls() {
 	show_message "******* WARNING WARNING WARNING *******" info
@@ -147,7 +255,7 @@ function update_urls() {
 	show_message "******* WARNING WARNING WARNING *******" info
 	show_message "You are about to update ${B}http${N} to ${B}https${N}" ok
 	show_message "If you're not sure about this abort now." info
-	read -r -p "Do you want to abort the update ? [y/N] " abortupdate
+	read -r -p "Do you want to abort the update (ENTER for no) ? [y/N] " abortupdate
 	case "$abortupdate" in
 	    [yY][eE][sS]|[yY])
 	        show_message "Update aborted. Script exiting." notok
@@ -158,9 +266,10 @@ function update_urls() {
 	        ;;
 	esac
 	WP2SSL_SITEURL=`wp option get siteurl`
+    WP2SSL_CURRENT_OWNER=$(ls -l wp-config.php | awk '{ print $3 }')
 	show_message "Running search and replace (verbose mode)" info
 	wp search-replace "$WP2SSL_SITEURL" "${WP2SSL_SITEURL/http:/https:}" --dry-run --precise --verbose
-	read -r -p "Proceed with the update ? [y/N] " goon
+	read -r -p "Proceed with the update (ENTER for yes) ? [y/N] " goon
 	case "$goon" in
 	    [yY][eE][sS]|[yY])
 			show_message "Search and replace accepted, proceeding with the update" ok
@@ -173,14 +282,19 @@ function update_urls() {
 	esac
 	show_message "Search and replace finished, updating .htaccess to enforce HTTPs" ok
 	\cp "$WP2SSL_CWD/.htaccess" "$WP2SSL_CWD/.htaccess.orig"
+    chown "$WP2SSL_CURRENT_OWNER:$WP2SSL_CURRENT_OWNER" "$WP2SSL_CWD/.htaccess"
+    WP2SSL_OLD_HTACCESS=$(<"$WP2SSL_CWD/.htaccess")
 # This looks odd, maybe we could re-arrange it in the future..
 # or maybe we could use
 # # sed -i '1s/^/<variable> /' .htaccess
 cat > "$WP2SSL_CWD/.htaccess" <<EOF
-# Force HTTPS
+# WP2SSL start (more info http://github.com/niladam/wp2ssl)
+# Forcing HTTP to HTTPs
 RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+# WP2SSL end
+$WP2SSL_OLD_HTACCESS
 EOF
 	show_message "Original htaccess retained as ${B}.htaccess.orig${N}. " ok
 	show_message ".htaccess should now redirect from HTTP to HTTPs" ok
